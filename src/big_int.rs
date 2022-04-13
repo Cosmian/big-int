@@ -37,7 +37,7 @@ impl RNSRepresentation {
         assert_eq!(
             self.modulus.len(),
             other.modulus.len(),
-            "Cannot add objects with different coefficient modulus!"
+            "Cannot add objects with different modulus!"
         );
 
         for (((a, &b), &p1), &p2) in self
@@ -47,7 +47,7 @@ impl RNSRepresentation {
             .zip(&self.modulus)
             .zip(&other.modulus)
         {
-            assert_eq!(p1, p2, "Cannot add objects with different `coeff_modulus`!");
+            assert_eq!(p1, p2, "Cannot add objects with different modulus!");
             *a = (*a + b) % p1;
         }
     }
@@ -72,7 +72,7 @@ impl RNSRepresentation {
             .zip(&self.modulus)
             .zip(&other.modulus)
         {
-            assert_eq!(p1, p2, "Cannot add objects with different `coeff_modulus`!");
+            assert_eq!(p1, p2, "Cannot add objects with different modulus!");
             if *a < b {
                 *a = ((p1 + *a) - b) % p1;
             } else {
@@ -172,10 +172,6 @@ impl BigInt {
         Self(Mpz::new())
     }
 
-    pub fn is_zero(&self) -> bool {
-        self.0.is_zero()
-    }
-
     /*
      * Random generation
      */
@@ -211,14 +207,13 @@ impl BigInt {
     /// - `q`       : upper bound on the generated number
     /// - `state`   : random state
     pub fn rand_range_ex_0(q: &Self, state: &mut RandState) -> Self {
-        let mut res: Self;
+        let mut res;
         loop {
             res = Self::rand_range(q, state);
             if !res.is_zero() {
-                break;
+                return res;
             }
         }
-        res
     }
 
     /// Get an invertible random in `Z_q`.
@@ -241,11 +236,13 @@ impl BigInt {
     /// - `range    : upper bound on the generated number
     /// - `state`   : random state
     pub fn invertible_rand_in_range(modulus: &Self, range: &Self, state: &mut RandState) -> Self {
-        let mut res = Self::rand_range(range, state);
-        while !res.is_invertible(modulus) {
+        let mut res;
+        loop {
             res = Self::rand_range(range, state);
+            if res.is_invertible(modulus) {
+                return res;
+            }
         }
-        res
     }
 
     /// Generate n-bits random elements and use the Miller-Rabin primality test
@@ -255,15 +252,15 @@ impl BigInt {
     /// - `n_reps`  : number of repetitions for the Miller-Rabin algorithm
     /// - `state`   : random state
     pub fn generate_prime(n_bits: u32, n_reps: i32, state: &mut RandState) -> Self {
-        println!("Generating prime...");
-
         // mask to ensure both the first and last bits are set
         let b = BigInt::from(2).pow(n_bits - 1) + 1;
-        let mut res = BigInt::rand_range_2exp(n_bits as u64, state) | &b;
-        while ProbabPrimeResult::NotPrime == res.0.probab_prime(n_reps) {
+        let mut res;
+        loop {
             res = BigInt::rand_range_2exp(n_bits as u64, state) | &b;
+            if ProbabPrimeResult::NotPrime != res.0.probab_prime(n_reps) {
+                return res;
+            }
         }
-        res
     }
 
     /*
@@ -403,7 +400,6 @@ impl BigInt {
     pub fn div_round_closest(&self, other: &Self) -> Result<Self> {
         let floor = self.div_floor(other)?;
         let ceil = &floor + Self::from(1);
-        // return the closest answer
         if (self - &floor * other) < (&ceil * other - self) {
             Ok(floor)
         } else {
@@ -429,8 +425,11 @@ impl BigInt {
     }
 
     /// Elevate `self` to the power of the given exponent in `Z_m`.
-    /// The modulus used must be odd -> requirement from gmp library.
-    /// gmp "sec" for secure as the function is designed for constant-time requirements.
+    /// The modulus used must be odd (requirement from gmp library).
+    /// We use `powm_sec` to get the result in a constant time.
+    ///
+    /// - `exp`     : exponent to use
+    /// - `modulus` : modulus to use to reduce the exponentiation result
     pub fn powm(&self, exp: &Self, modulus: &Self) -> Result<Self> {
         eyre::ensure!(
             !modulus.is_divisible_by(&BigInt::from(2)),
@@ -470,6 +469,11 @@ impl BigInt {
     ///
     /// - `modulus` : list of primes `p_i`
     pub fn to_rns(&self, modulus: &[u64]) -> RNSRepresentation {
+        // TODO: ensure self is a positive number
+        assert!(
+            self >= &BigInt::zero(),
+            "negative BigInt to RNSRepresentation convversion is not yet supported!"
+        );
         RNSRepresentation {
             data: modulus.iter().map(|&p| self.reduce_ui(p)).collect(),
             modulus: modulus.to_vec(),
@@ -618,7 +622,7 @@ impl Zero for BigInt {
     }
 
     fn is_zero(&self) -> bool {
-        self == 0
+        self.0.is_zero()
     }
 }
 
@@ -628,7 +632,7 @@ impl One for BigInt {
     }
 
     fn is_one(&self) -> bool {
-        self == 1
+        self.0.is_one()
     }
 }
 
