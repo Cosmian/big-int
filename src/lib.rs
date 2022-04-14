@@ -6,5 +6,5 @@ pub enum Errors {
     ConversionError,
 }
 
-pub type BigInt = big_int::BigInt;
-pub type RNSRepresentation = big_int::RNSRepresentation;
+pub use big_int::BigInt;
+pub use big_int::RNSRepresentation;
