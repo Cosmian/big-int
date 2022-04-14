@@ -1,5 +1,4 @@
-use crate::Errors;
-use eyre::Result;
+use crate::{BigIntError, RNSRepresentation};
 use gmp::{
     mpz::{Mpz, ProbabPrimeResult},
     rand::RandState,
@@ -9,161 +8,10 @@ use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
     iter::{Product, Sum},
-    ops::{Deref, Mul, MulAssign, Neg},
+    ops::{Mul, Neg},
 };
 
-#[derive(Debug, Clone)]
-pub struct RNSRepresentation {
-    data: Vec<u64>,
-    modulus: Vec<u64>,
-}
-
-impl RNSRepresentation {
-    pub fn new(data: Vec<u64>, modulus: &[u64]) -> Result<RNSRepresentation> {
-        eyre::ensure!(data.len() == modulus.len(), "Length do not match!");
-        Ok(Self {
-            data,
-            modulus: modulus.to_vec(),
-        })
-    }
-
-    fn add(&self, other: &Self) -> Self {
-        let mut res = self.clone();
-        res.add_assign(other);
-        res
-    }
-
-    fn add_assign(&mut self, other: &Self) {
-        assert_eq!(
-            self.modulus.len(),
-            other.modulus.len(),
-            "Cannot add objects with different modulus!"
-        );
-
-        for (((a, &b), &p1), &p2) in self
-            .data
-            .iter_mut()
-            .zip(other.data.iter())
-            .zip(&self.modulus)
-            .zip(&other.modulus)
-        {
-            assert_eq!(p1, p2, "Cannot add objects with different modulus!");
-            *a = (*a + b) % p1;
-        }
-    }
-
-    fn sub(&self, other: &Self) -> Self {
-        let mut res = self.clone();
-        res.sub_assign(other);
-        res
-    }
-
-    fn sub_assign(&mut self, other: &Self) {
-        assert_eq!(
-            self.modulus.len(),
-            other.modulus.len(),
-            "Cannot add objects with different coefficient modulus!"
-        );
-
-        for (((a, &b), &p1), &p2) in self
-            .data
-            .iter_mut()
-            .zip(other.data.iter())
-            .zip(&self.modulus)
-            .zip(&other.modulus)
-        {
-            assert_eq!(p1, p2, "Cannot add objects with different modulus!");
-            if *a < b {
-                *a = ((p1 + *a) - b) % p1;
-            } else {
-                *a = (*a - b) % p1;
-            }
-        }
-    }
-
-    fn mul_scalar<'a, T>(&self, scalar: &'a T) -> Self
-    where
-        u64: MulAssign<&'a T>,
-    {
-        let mut res = self.clone();
-        res.mul_assign_scalar(scalar);
-        res
-    }
-
-    fn mul_assign_scalar<'a, T>(&mut self, scalar: &'a T)
-    where
-        u64: MulAssign<&'a T>,
-    {
-        for (e, p) in self.data.iter_mut().zip(&self.modulus) {
-            *e *= scalar;
-            *e %= p;
-        }
-    }
-
-    fn mul_big_int(&self, scalar: &BigInt) -> Self {
-        let mut res = self.clone();
-        res.mul_assign_big_int(scalar);
-        res
-    }
-
-    fn mul_assign_big_int(&mut self, scalar: &BigInt) {
-        let scalar = scalar.to_rns(&self.modulus);
-        for ((e, s), p) in self
-            .data
-            .iter_mut()
-            .zip(scalar.data.iter())
-            .zip(&self.modulus)
-        {
-            *e *= s;
-            *e %= p;
-        }
-    }
-}
-
-impl Deref for RNSRepresentation {
-    type Target = Vec<u64>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.data
-    }
-}
-
-crate::impl_ops_trait!(
-    RNSRepresentation,
-    RNSRepresentation,
-    Add { add },
-    AddAssign { add_assign },
-    add,
-    add_assign
-);
-
-crate::impl_ops_trait!(
-    RNSRepresentation,
-    RNSRepresentation,
-    Sub { sub },
-    SubAssign { sub_assign },
-    sub,
-    sub_assign
-);
-
-crate::impl_ops_trait!(
-    RNSRepresentation,
-    u64,
-    Mul { mul },
-    MulAssign { mul_assign },
-    mul_scalar,
-    mul_assign_scalar
-);
-
-crate::impl_ops_trait!(
-    RNSRepresentation,
-    BigInt,
-    Mul { mul },
-    MulAssign { mul_assign },
-    mul_big_int,
-    mul_assign_big_int
-);
-
+/// Implementation based on GMP of a big integer.
 #[derive(Debug, Clone, PartialEq, PartialOrd, Hash)]
 pub struct BigInt(pub(crate) Mpz);
 
@@ -387,17 +235,21 @@ impl BigInt {
 
     /// Divide `self` by the given `BigInt` exactly if this is possible. Return
     /// `None` if it is not possible.
-    pub fn div_exact(&self, other: &Self) -> Result<Option<Self>> {
-        eyre::ensure!(!other.is_zero(), "Cannot exactly divide by zero!");
-        if self.is_divisible_by(other) {
-            Ok(Some(Self(self.0.div_floor(&other.0))))
+    pub fn div_exact(&self, other: &Self) -> Result<Self, BigIntError> {
+        if other.is_zero() {
+            Err(BigIntError::DivisionByZero)
+        } else if !self.is_divisible_by(other) {
+            Err(BigIntError::DivisionError {
+                dividand: self.clone(),
+                divisor: other.clone(),
+            })
         } else {
-            Ok(None)
+            Ok(Self(self.0.div_floor(&other.0)))
         }
     }
 
     /// Divide `self` by the given `BigInt`, round to the closest `BigInt`.
-    pub fn div_round_closest(&self, other: &Self) -> Result<Self> {
+    pub fn div_round_closest(&self, other: &Self) -> Result<Self, BigIntError> {
         let floor = self.div_floor(other)?;
         let ceil = &floor + Self::from(1);
         if (self - &floor * other) < (&ceil * other - self) {
@@ -408,15 +260,21 @@ impl BigInt {
     }
 
     /// Divide `self` by the given `BigInt`, round toward infinity.
-    pub fn div_ceil(&self, other: &Self) -> Result<Self> {
-        eyre::ensure!(!other.is_zero(), "Cannot ceil divide by zero!");
-        Ok(self.div_floor(other)? + Self::from(1))
+    pub fn div_ceil(&self, other: &Self) -> Result<Self, BigIntError> {
+        if other.is_zero() {
+            Err(BigIntError::DivisionByZero)
+        } else {
+            Ok(self.div_floor(other)? + Self::from(1))
+        }
     }
 
     /// Divide `self` by the given `BigInt`, round toward minus infinity.
-    pub fn div_floor(&self, other: &Self) -> Result<Self> {
-        eyre::ensure!(!other.is_zero(), "Cannot floor divide by zero!");
-        Ok(Self(self.0.div_floor(&other.0)))
+    pub fn div_floor(&self, other: &Self) -> Result<Self, BigIntError> {
+        if other.is_zero() {
+            Err(BigIntError::DivisionByZero)
+        } else {
+            Ok(Self(self.0.div_floor(&other.0)))
+        }
     }
 
     /// Elevate `self` to the power of the given exponent.
@@ -430,12 +288,12 @@ impl BigInt {
     ///
     /// - `exp`     : exponent to use
     /// - `modulus` : modulus to use to reduce the exponentiation result
-    pub fn powm(&self, exp: &Self, modulus: &Self) -> Result<Self> {
-        eyre::ensure!(
-            !modulus.is_divisible_by(&BigInt::from(2)),
-            "The modulus used cannot be an even number !"
-        );
-        Ok(Self(self.0.powm_sec(&exp.0, &modulus.0)))
+    pub fn powm(&self, exp: &Self, modulus: &Self) -> Result<Self, BigIntError> {
+        if modulus.is_divisible_by(&BigInt::from(2)) {
+            Err(BigIntError::EvenModulus)
+        } else {
+            Ok(Self(self.0.powm_sec(&exp.0, &modulus.0)))
+        }
     }
 
     /// Check if `self` is invertible modulo the given `BigInt`.
@@ -445,8 +303,14 @@ impl BigInt {
 
     /// Invert `self` modulo the given `BigInt` if this is possible. Return
     /// `None` if it is impossible.
-    pub fn invmod(&self, modulus: &Self) -> Option<Self> {
-        self.0.invert(&modulus.0).map(Self)
+    pub fn invmod(&self, modulus: &Self) -> Result<Self, BigIntError> {
+        self.0
+            .invert(&modulus.0)
+            .map(Self)
+            .ok_or_else(|| BigIntError::NonexistantInverse {
+                operand: self.clone(),
+                modulus: modulus.clone(),
+            })
     }
 
     /// Reduce `self` modulo the given `BigInt`.
@@ -558,7 +422,7 @@ impl From<i32> for BigInt {
 }
 
 impl<'a> TryFrom<&'a BigInt> for u64 {
-    type Error = Errors;
+    type Error = BigIntError;
     fn try_from(n: &'a BigInt) -> Result<Self, Self::Error> {
         Option::<u64>::from(&n.0).ok_or(Self::Error::ConversionError)
     }

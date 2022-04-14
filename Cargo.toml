@@ -4,6 +4,9 @@ name = "big-int"
 version = "0.1.0"
 
 [dependencies]
-eyre = "0.6"
 num = "0.4"
 rust-gmp = "0.5"
+thiserror = "1.0"
+
+[dev-dependencies]
+eyre = "0.6"

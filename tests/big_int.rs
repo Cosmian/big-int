@@ -1,5 +1,5 @@
-use eyre::Result;
 use big_int::BigInt;
+use eyre::Result;
 
 #[test]
 fn test_pow() -> Result<()> {
@@ -21,15 +21,22 @@ fn test_powm() -> Result<()> {
 }
 
 #[test]
+fn test_division_by_0() -> Result<()> {
+    let (a, b) = (BigInt::from(2), BigInt::from(0));
+    eyre::ensure!(
+        big_int::BigIntError::DivisionByZero == a.div_exact(&b).unwrap_err(),
+        "Wrong error returned"
+    );
+    Ok(())
+}
+
+#[test]
 fn test_div_exact() -> Result<()> {
     let a = BigInt::from(124u64);
     let b = BigInt::from(2u64);
     eyre::ensure!(a.is_divisible_by(&b), "Cannot divide {:?} by {:?}!", a, b);
     // Can unwrap safely since `a.is_divisible_by(&b) == true`
-    eyre::ensure!(
-        a.div_exact(&b)?.unwrap() == 62u64,
-        "Wrong exact division result!"
-    );
+    eyre::ensure!(a.div_exact(&b)? == 62u64, "Wrong exact division result!");
     Ok(())
 }
 
