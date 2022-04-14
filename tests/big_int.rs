@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use eyre::Result;
 use big_int::BigInt;
 
