@@ -1,5 +1,4 @@
 #[macro_export]
-
 macro_rules! impl_ops_trait {
     ($Self: ty,
      $Other: ty,
