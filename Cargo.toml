@@ -2,7 +2,8 @@
 edition = "2021"
 name = "big-int"
 version = "0.1.0"
+
 [dependencies]
-eyre = "*"
+eyre = "0.6"
 num = "0.4"
 rust-gmp = "0.5"
