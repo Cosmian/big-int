@@ -1,0 +1,52 @@
+name: CI checks
+
+on: [pull_request]
+
+jobs:
+
+  # Ensure all code has been formatted with rustfmt
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Check formatting
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: -- --check --color always
+
+  # Lint with Clippy
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Static analysis
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
+
+  # Build software
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+
+  # Run tests
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Run tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --verbose
