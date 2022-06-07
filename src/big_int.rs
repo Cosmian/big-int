@@ -507,6 +507,17 @@ impl<'a> Mul<&'a BigInt> for u64 {
         rhs.add_ui(&self)
     }
 }
+
+impl<'a, T> From<&'a T> for BigInt
+where
+    T: Copy,
+    BigInt: From<T>,
+{
+    fn from(n: &'a T) -> Self {
+        BigInt::from(*n)
+    }
+}
+
 crate::impl_ops_trait!(
     BigInt,
     BigInt,
