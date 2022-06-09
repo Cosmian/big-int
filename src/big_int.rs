@@ -125,62 +125,50 @@ impl BigInt {
         Self(self.0.lcm(&q.0))
     }
 
-    /// Compute the addition of two `BigInt`.
     fn add(&self, other: &Self) -> Self {
         Self(&self.0 + &other.0)
     }
 
-    /// Compute the addition of two `BigInt`.
     fn add_assign(&mut self, other: &Self) {
         self.0 += &other.0;
     }
 
-    /// Compute the addition of a `BigInt` with a `u64`.
     fn add_ui(&self, other: &u64) -> Self {
         Self(&self.0 + *other)
     }
 
-    /// Compute the addition of two `BigInt`.
     fn add_assign_ui(&mut self, other: &u64) {
         self.0 += *other;
     }
 
-    /// Compute the substraction of two `BigInt`.
     fn sub(&self, other: &Self) -> Self {
         Self(&self.0 - &other.0)
     }
 
-    /// Compute the substraction of two `BigInt`.
     fn sub_assign(&mut self, other: &Self) {
         self.0 -= &other.0;
     }
 
-    /// Compute the substraction of two `BigInt`.
     fn sub_ui(&self, other: &u64) -> Self {
         Self(&self.0 - *other)
     }
 
-    /// Compute the substraction of two `BigInt`.
     fn sub_assign_ui(&mut self, other: &u64) {
         self.0 -= *other;
     }
 
-    /// Compute the multiplication of two `BigInt`.
     fn mul(&self, other: &Self) -> Self {
         Self(&self.0 * &other.0)
     }
 
-    /// Compute the multiplication of two `BigInt`.
     fn mul_assign(&mut self, other: &Self) {
         self.0 *= &other.0;
     }
 
-    /// Compute the multiplication of two `BigInt`.
     fn mul_ui(&self, other: &u64) -> Self {
         Self(&self.0 * *other)
     }
 
-    /// Compute the multiplication of two `BigInt`.
     fn mul_assign_ui(&mut self, other: &u64) {
         self.0 *= *other;
     }
@@ -191,7 +179,6 @@ impl BigInt {
         Self(self.0.modulus(&modulo.0))
     }
 
-    /// Compute the remainder of a `BigInt` modulo a `&BigInt`.
     fn rem_assign(&mut self, modulo: &Self) {
         self.0 = self.0.modulus(&modulo.0)
     }
@@ -331,9 +318,12 @@ impl BigInt {
     ///
     /// where `m_i` is the RNS composant given the prime `p_i`
     ///
+    /// # Panic
+    ///
+    /// This function will panic if it is called on a negative number.
+    ///
     /// - `modulus` : list of primes `p_i`
     pub fn to_rns(&self, modulus: &[u64]) -> RNSRepresentation {
-        // TODO: ensure self is a positive number
         assert!(
             self >= &BigInt::zero(),
             "negative BigInt to RNSRepresentation convversion is not yet supported!"
@@ -351,14 +341,18 @@ impl BigInt {
     where
         T: Hash,
     {
-        // initializing at 0 as it is not invertible; the BigInt default value is 0.
-        let mut result = BigInt::default();
         let mut hasher = DefaultHasher::new();
+        let mut result = BigInt::zero();
         while !result.is_invertible(modulus) {
             input.hash(&mut hasher);
             result = BigInt::from(hasher.finish()) % modulus;
         }
         result
+    }
+
+    /// Return the size in byte of a BigInt.
+    pub fn size(&self) -> usize {
+        self.0.size_in_base(8)
     }
 }
 
