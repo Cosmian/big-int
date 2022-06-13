@@ -432,7 +432,7 @@ impl Neg for &BigInt {
     type Output = BigInt;
 
     fn neg(self) -> Self::Output {
-        BigInt(-self.0.clone())
+        BigInt(-&self.0)
     }
 }
 
