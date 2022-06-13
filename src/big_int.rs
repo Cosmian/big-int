@@ -173,16 +173,6 @@ impl BigInt {
         self.0 *= *other;
     }
 
-    /// Compute the remainder of a `BigInt` modulo a `&BigInt`,
-    /// keeping it positive.
-    fn rem(&self, modulo: &Self) -> Self {
-        Self(self.0.modulus(&modulo.0))
-    }
-
-    fn rem_assign(&mut self, modulo: &Self) {
-        self.0 = self.0.modulus(&modulo.0)
-    }
-
     fn bit_or(&self, other: &Self) -> Self {
         Self(&self.0 | &other.0)
     }
@@ -278,6 +268,8 @@ impl BigInt {
     pub fn powm(&self, exp: &Self, modulus: &Self) -> Result<Self, BigIntError> {
         if modulus.is_divisible_by(&BigInt::from(2)) {
             Err(BigIntError::EvenModulus)
+        } else if modulus.is_zero() {
+            Err(BigIntError::DivisionByZero)
         } else {
             Ok(Self(self.0.powm_sec(&exp.0, &modulus.0)))
         }
@@ -291,24 +283,32 @@ impl BigInt {
     /// Invert `self` modulo the given `BigInt` if this is possible. Return
     /// `None` if it is impossible.
     pub fn invmod(&self, modulus: &Self) -> Result<Self, BigIntError> {
-        self.0
-            .invert(&modulus.0)
-            .map(Self)
-            .ok_or_else(|| BigIntError::NonexistantInverse {
-                operand: self.clone(),
-                modulus: modulus.clone(),
-            })
+        if modulus.is_zero() {
+            Err(BigIntError::DivisionByZero)
+        } else {
+            self.0
+                .invert(&modulus.0)
+                .map(Self)
+                .ok_or_else(|| BigIntError::NonexistantInverse {
+                    operand: self.clone(),
+                    modulus: modulus.clone(),
+                })
+        }
     }
 
     /// Reduce `self` modulo the given `BigInt`.
-    pub fn reduce(&self, modulus: &Self) -> Self {
-        Self(self.0.modulus(&modulus.0))
+    pub fn reduce(&self, modulus: &Self) -> Result<Self, BigIntError> {
+        if modulus.is_zero() {
+            Err(BigIntError::DivisionByZero)
+        } else {
+            Ok(Self(self.0.modulus(&modulus.0)))
+        }
     }
 
     /// Reduce `self` modulo the given `u64`.
-    pub fn reduce_ui(&self, modulus: u64) -> u64 {
-        u64::try_from(&self.reduce(&BigInt::from(modulus)))
-            .expect("Reducing a `BigInt` by a `u64` should return a 64-bit sized `BigInt`")
+    pub fn reduce_ui(&self, modulus: u64) -> Result<u64, BigIntError> {
+        Ok(u64::try_from(&self.reduce(&BigInt::from(modulus))?)
+            .expect("Reducing a `BigInt` by a `u64` should return a 64-bit sized `BigInt`"))
     }
 
     /// Convert the given BigInt `m` into its RNS reprensentation using the
@@ -323,21 +323,24 @@ impl BigInt {
     /// This function will panic if it is called on a negative number.
     ///
     /// - `modulus` : list of primes `p_i`
-    pub fn to_rns(&self, modulus: &[u64]) -> RNSRepresentation {
+    pub fn to_rns(&self, modulus: &[u64]) -> Result<RNSRepresentation, BigIntError> {
         assert!(
             self >= &BigInt::zero(),
             "negative BigInt to RNSRepresentation convversion is not yet supported!"
         );
-        RNSRepresentation {
-            data: modulus.iter().map(|&p| self.reduce_ui(p)).collect(),
+        Ok(RNSRepresentation {
+            data: modulus
+                .iter()
+                .map(|p| -> Result<u64, BigIntError> { self.reduce_ui(*p) })
+                .collect::<Result<Vec<u64>, BigIntError>>()?,
             modulus: modulus.to_vec(),
-        }
+        })
     }
 
     /// Hash to an invertible BigInt modulo the given modulus.
     /// - `input`     : input to the hash function;
     /// - `modulus`   : we require the result of the hash function to be invertible modulo this `BigInt`.
-    pub fn hash_to_invertible<T>(input: &T, modulus: &BigInt) -> BigInt
+    pub fn hash_to_invertible<T>(input: &T, modulus: &Self) -> Result<Self, BigIntError>
     where
         T: Hash,
     {
@@ -345,9 +348,9 @@ impl BigInt {
         let mut result = BigInt::zero();
         while !result.is_invertible(modulus) {
             input.hash(&mut hasher);
-            result = BigInt::from(hasher.finish()) % modulus;
+            result = BigInt::from(hasher.finish()).reduce(modulus)?;
         }
-        result
+        Ok(result)
     }
 
     /// Return the size in byte of a BigInt.
@@ -564,15 +567,6 @@ crate::impl_ops_trait!(
     MulAssign { mul_assign },
     mul_ui,
     mul_assign_ui
-);
-
-crate::impl_ops_trait!(
-    BigInt,
-    BigInt,
-    Rem { rem },
-    RemAssign { rem_assign },
-    rem,
-    rem_assign
 );
 
 crate::impl_ops_trait!(
