@@ -270,6 +270,8 @@ impl BigInt {
             Err(BigIntError::EvenModulus)
         } else if modulus.is_zero() {
             Err(BigIntError::DivisionByZero)
+        } else if exp < &BigInt::zero() {
+            Err(BigIntError::NegativeExponent)
         } else {
             Ok(Self(self.0.powm_sec(&exp.0, &modulus.0)))
         }
@@ -289,7 +291,7 @@ impl BigInt {
             self.0
                 .invert(&modulus.0)
                 .map(Self)
-                .ok_or_else(|| BigIntError::NonexistantInverse {
+                .ok_or_else(|| BigIntError::NonInvertible {
                     operand: self.clone(),
                     modulus: modulus.clone(),
                 })
@@ -421,7 +423,7 @@ impl From<i32> for BigInt {
 impl<'a> TryFrom<&'a BigInt> for u64 {
     type Error = BigIntError;
     fn try_from(n: &'a BigInt) -> Result<Self, Self::Error> {
-        Option::<u64>::from(&n.0).ok_or(Self::Error::ConversionError)
+        Option::<u64>::from(&n.0).ok_or(Self::Error::ConversionError(String::new()))
     }
 }
 
