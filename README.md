@@ -17,7 +17,7 @@ It provides representations and arithmetic operations over integers, rational
 number and floating points [3]. This crate focuses on the `mpz` integers, even
 though it could easily be extended.
 
-In order to compile this crate, on has to install GMP. This can be done by
+In order to compile this crate, one has to install GMP. This can be done by
 installing the dev package provided by the package manager on any recent Linux
 system, or by installing it from source.
 
