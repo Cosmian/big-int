@@ -211,7 +211,6 @@ impl BigInt {
     }
 
     /// Divide `self` by the given `BigInt` exactly if this is possible. Return
-    /// `None` if it is not possible.
     pub fn div_exact(&self, other: &Self) -> Result<Self, BigIntError> {
         if other.is_zero() {
             Err(BigIntError::DivisionByZero)
@@ -357,6 +356,25 @@ impl BigInt {
     /// Return the size in byte of a BigInt.
     pub fn size(&self) -> usize {
         self.0.size_in_base(8)
+    }
+
+    /// Convert the given `BigInt` into the corresponding little endian byte string.
+    pub fn to_le_bytes(&self) -> Result<Vec<u8>, BigIntError> {
+        // one byte encode 256 different numbers
+        const MODULUS: u64 = 256;
+        let modulus = BigInt::from(MODULUS);
+        // we cannot know easily which size we will need
+        // => allocate 128 bytes to avoid reallocations
+        const PRE_ALLOCATION_SIZE: usize = 128;
+        let mut res = Vec::with_capacity(PRE_ALLOCATION_SIZE);
+        let mut n = self.clone();
+        while !n.is_zero() {
+            let rem = n.reduce_ui(MODULUS)?;
+            n -= rem;
+            n = n.div_exact(&modulus)?;
+            res.push(rem as u8);
+        }
+        Ok(res)
     }
 }
 
@@ -513,6 +531,22 @@ where
 {
     fn from(n: &'a T) -> Self {
         BigInt::from(*n)
+    }
+}
+
+impl TryFrom<&BigInt> for Vec<u8> {
+    type Error = BigIntError;
+
+    fn try_from(value: &BigInt) -> Result<Self, Self::Error> {
+        value.to_le_bytes()
+    }
+}
+
+impl From<&[u8]> for BigInt {
+    fn from(v: &[u8]) -> Self {
+        v.iter()
+            .rev()
+            .fold(BigInt::zero(), |acc, &e| acc * 256 + u64::from(e))
     }
 }
 

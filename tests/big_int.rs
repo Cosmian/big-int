@@ -76,3 +76,18 @@ fn test_rns() {
     let res = BigInt::from(&rns).reduce(&q).unwrap();
     assert_eq!(n.reduce(&q).unwrap(), res, "Invalid RNS conversion!");
 }
+
+#[test]
+fn test_to_le_bytes() {
+    let b = BigInt::from(25 * 256u64.pow(2) + 100 * 256 + 255);
+    let b = b.to_le_bytes().unwrap();
+    assert_eq!(b, [255, 100, 25], "Wrong byte translation");
+}
+
+#[test]
+fn test_serialization() {
+    let mut state = BigInt::rand_init(0);
+    let n = BigInt::rand_range_2exp(256, &mut state);
+    let bytes: Vec<u8> = (&n).try_into().unwrap();
+    assert_eq!(n, BigInt::from(bytes.as_slice()))
+}
