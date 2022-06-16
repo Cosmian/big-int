@@ -309,8 +309,7 @@ impl BigInt {
 
     /// Reduce `self` modulo the given `u64`.
     pub fn reduce_ui(&self, modulus: u64) -> Result<u64, BigIntError> {
-        Ok(u64::try_from(&self.reduce(&BigInt::from(modulus))?)
-            .expect("Reducing a `BigInt` by a `u64` should return a 64-bit sized `BigInt`"))
+        u64::try_from(&self.reduce(&BigInt::from(modulus))?)
     }
 
     /// Convert the given BigInt `m` into its RNS reprensentation using the
@@ -328,7 +327,7 @@ impl BigInt {
     pub fn to_rns(&self, modulus: &[u64]) -> Result<RNSRepresentation, BigIntError> {
         assert!(
             self >= &BigInt::zero(),
-            "negative BigInt to RNSRepresentation convversion is not yet supported!"
+            "negative BigInt to RNSRepresentation conversion is not yet supported!"
         );
         Ok(RNSRepresentation {
             data: modulus
