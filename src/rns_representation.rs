@@ -115,14 +115,14 @@ impl RNSRepresentation {
         }
     }
 
-    fn mul_big_int(&self, scalar: &BigInt) -> Self {
+    pub fn mul_big_int(&self, scalar: &BigInt) -> Result<Self, BigIntError> {
         let mut res = self.clone();
-        res.mul_assign_big_int(scalar);
-        res
+        res.mul_assign_big_int(scalar)?;
+        Ok(res)
     }
 
-    fn mul_assign_big_int(&mut self, scalar: &BigInt) {
-        let scalar = scalar.to_rns(&self.modulus);
+    pub fn mul_assign_big_int(&mut self, scalar: &BigInt) -> Result<(), BigIntError> {
+        let scalar = scalar.to_rns(&self.modulus)?;
         for ((e, s), p) in self
             .data
             .iter_mut()
@@ -132,6 +132,7 @@ impl RNSRepresentation {
             *e *= s;
             *e %= p;
         }
+        Ok(())
     }
 }
 
@@ -168,13 +169,4 @@ crate::impl_ops_trait!(
     MulAssign { mul_assign },
     mul_scalar,
     mul_assign_scalar
-);
-
-crate::impl_ops_trait!(
-    RNSRepresentation,
-    BigInt,
-    Mul { mul },
-    MulAssign { mul_assign },
-    mul_big_int,
-    mul_assign_big_int
 );

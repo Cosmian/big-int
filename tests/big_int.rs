@@ -60,7 +60,7 @@ fn test_hash_to_invertible() {
     let mut state = BigInt::rand_init(0u64);
     let modulus = BigInt::from(30);
     let n = BigInt::rand_range(&modulus, &mut state);
-    let hashee = BigInt::hash_to_invertible(&n, &modulus);
+    let hashee = BigInt::hash_to_invertible(&n, &modulus).unwrap();
     assert!(
         (hashee.is_invertible(&modulus) && (hashee < modulus)),
         "The function for hashing to an invertible BigInt is wrong."
@@ -72,7 +72,7 @@ fn test_rns() {
     let modulus = [3, 5];
     let q: BigInt = modulus.iter().map(|&e| BigInt::from(e)).product();
     let n = BigInt::from(40);
-    let rns = n.to_rns(&modulus);
-    let res = BigInt::from(&rns) % &q;
-    assert_eq!(n % &q, res, "Invalid RNS conversion!");
+    let rns = n.to_rns(&modulus).unwrap();
+    let res = BigInt::from(&rns).reduce(&q).unwrap();
+    assert_eq!(n.reduce(&q).unwrap(), res, "Invalid RNS conversion!");
 }
